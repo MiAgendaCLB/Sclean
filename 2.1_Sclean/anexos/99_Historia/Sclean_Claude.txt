@@ -1,0 +1,267 @@
+Quiero hacer una aplicacion que me auide a aplicar lo que dice el anexo. Pero solo leelo, analizalo y realiza sugerencias. Se objetivo, acertivo, directo, no des contexto innecesario solo explica lo que es y con claridad. Recuerda que sufri de un acv y la idea es que administrar los documentos que escaneo sea facil. Haremos una prueba ajustando un documento y le aplicamos esas habilidades si nos faltaron en la descripcion. En este momento lee y analiza
+
+
+Identificó contradicciones técnicas, carencias de accesibilidad y desalineación entre especificación y arquitectura real
+Identificó contradicciones técnicas, carencias de accesibilidad y desalineación entre especificación y arquitectura real
+Qué es este documento en realidad
+
+No es una arquitectura ni una especificación técnica. Es un prompt diseñado para que un modelo de lenguaje "actúe como" un motor de restauración. Eso es un problema de fondo: describe funciones de procesamiento de imagen (deskew, super-resolución, binarización, OCR) como si fueran instrucciones conversacionales, cuando en la práctica son operaciones deterministas que requieren librerías específicas (OpenCV, Tesseract/OCRmyPDF, modelos de super-resolución tipo Real-ESRGAN). Un LLM no ejecuta estas fases sobre píxeles; las orquesta invocando herramientas reales.
+
+Inconsistencia conceptual real (no inventada)
+
+Fase 6 pide "super resolución" y en la misma frase exige "nunca inventar detalles inexistentes". Esto es contradictorio en la práctica: todo modelo de súper-resolución interpola o alucina información que no estaba en los píxeles originales (es su mecanismo de funcionamiento). No hay super-resolución sin invención de detalle a nivel de textura. Si tu prioridad real es fidelidad documental (fechas, números, firmas), la super-resolución debe limitarse a interpolación clásica (bicúbica/Lanczos) o modelos entrenados específicamente para texto documental, nunca modelos generativos genéricos de imagen. Esto hay que decidirlo explícitamente, no dejarlo implícito.
+
+Lo que está bien planteado
+
+La secuencia de 10 fases (análisis → geometría → limpieza → iluminación → mejora → resolución → OCR-prep → OCR → generación → validación) es un esqueleto de pipeline razonable y estándar en la industria de digitalización documental. Como checklist de qué debe pasar, es coherente y no hay que rediseñarlo.
+
+Lo que falta y es crítico para tu objetivo
+
+Cero mención a gestión documental. Tú dices que el objetivo es "administrar fácil" los documentos escaneados, pero el anexo es 100% sobre calidad de imagen. No hay nada sobre: nombrar, clasificar, buscar, relacionar con un caso (esto conecta directo con BDVive y el modelo CASO). Si la app solo restaura PDFs pero no los organiza, no resuelve tu problema real.
+Cero mención a accesibilidad. Dado el ACV, lo que importa no es la calidad del pipeline interno sino la simplicidad de la interacción: pocos clics, pasos automáticos, feedback claro, posibilidad de deshacer sin fricción. El anexo no dice nada de esto porque no fue escrito pensando en el usuario final, sino en el resultado técnico.
+Sin umbrales medibles. Frases como "cuando sea necesario" o "si la resolución es insuficiente" no son implementables sin definir un número (ej. DPI mínimo aceptable, umbral de contraste). Esto no es un defecto grave, pero hay que resolverlo antes de programar, si no cada "fase" queda como decisión ambigua.
+Sin manejo de fallos. Qué pasa si el OCR falla, si la imagen está tan dañada que no se puede corregir, si el documento tiene páginas mezcladas. No está contemplado.
+Recomendación de enfoque (sin romper lo que ya definiste)
+
+Usa el anexo como checklist de calidad de imagen (fases 1-10), pero no como especificación de producto. El producto real necesita dos capas separadas:
+
+Capa técnica: pipeline determinista (herramientas reales, no LLM) que ejecuta deskew, limpieza, contraste, OCR oculto, genera PDF/A. Aquí sí aplican las 10 fases, ajustando la de super-resolución para evitar alucinación de detalle.
+Capa de interacción: mínima, pensada para ti — subir foto/escaneo → un botón → resultado. Sin configuración manual, sin decisiones técnicas expuestas.
+¿Seguimos con la prueba sobre un documento real para ver qué falta en la práctica, o primero cerramos la capa de interacción (cómo se va a ver la app)?
+
+No aun no, quiero darte todo el contexto primero. Ahora lee el siguiente archivo y por favor analizalo y ve que podemos aplicar en lo que te pido aqui. Al terminar genera un prompt con todo lo que podriamo aplicar a nuestra app
+
+
+Pensó durante 1s
+Pensó durante 1s
+
+ReglasDocumentos.md
+md
+
+No aun no, quiero darte todo el contexto primero. Ahora lee el siguiente archivo y por favor analizalo y ve que podemos aplicar en lo que te pido aqui. Al terminar genera un prompt con todo lo que podriamo aplicar a nuestra app
+
+
+Desglozó tres documentos concatenados e identificó elementos aplicables
+Desglozó tres documentos concatenados e identificó elementos aplicables
+Qué es realmente este archivo
+
+Son tres documentos distintos pegados en el mismo .md:
+
+Prompt de Arquitecto Documental (inventario/renombrado de la carpeta 002_Yami)
+El mismo prompt de Restauración Documental que ya analizamos (repetido, con variaciones menores)
+Un Hallazgo/Playbook operativo — esta es la parte con valor real, porque documenta errores concretos ya vividos, no teoría.
+Voy a enfocarme en lo nuevo y en lo aplicable. No repito el problema de súper-resolución del documento anterior — sigue vigente, aplica igual aquí.
+
+Lo valioso y directamente reutilizable
+
+Modelo de nomenclatura como esquema de metadatos, no como texto libre.
+AAAAMMDD_SIGLA_Especialidad_Entidad_Paciente.ext no es solo un nombre de archivo — es un modelo de datos de 5 campos (fecha, tipo documental, especialidad, entidad, persona). Para tu app esto se traduce directo a un formulario estructurado (selects + fecha), no a que tú recuerdes el formato. Reduce carga cognitiva, que es justamente tu prioridad por el ACV.
+Catálogo de siglas (HC, OS, RE, FM, RC, PT, QJ, RCL, SG) = Glosario.
+Esto no debe vivir hardcodeado en el prompt ni en el código. Es exactamente el patrón que ya tienes en BDVive: catálogos configurables desde Glosario. Mismo principio, mismo módulo.
+Regla "PENDIENTE DE CLASIFICAR" en vez de inventar sigla.
+Buen patrón de UX: nunca forzar una clasificación falsa. Se traduce en la app como un estado explícito, no una suposición silenciosa.
+Detección de duplicados en dos niveles: hash MD5 (exacto) + comparación de contenido (semántico).
+El hallazgo deja claro que hash solo no basta — dos exportaciones distintas del mismo documento pueden tener bytes diferentes. Esto es una función real y útil para tu app: detectar duplicados por contenido, no solo por archivo idéntico.
+Lo que NO aplica a tu app (y hay que descartar explícitamente)
+
+Todo el bloque de .bat, GOTO, cmd.exe, paréntesis rompiendo bloques if/else, CSV externo para alimentar el batch — es la solución manual que se usó por no tener una app. Si tu app hace el renombrado/movimiento directamente (no generando un script para que tú lo ejecutes a mano en Windows), todo ese problema desaparece de raíz. No hay que portar la solución del parche; hay que portar la causa raíz que resuelve: la app debe ejecutar la operación de archivo directamente, no producir instrucciones para que un humano las corra.
+
+Principios de seguridad del Hallazgo que sí son arquitectura, no parche
+
+Estos si son transferibles 1:1 a cualquier función de tu app que mueva/renombre/borre archivos:
+
+Idempotencia obligatoria: antes de mover, comprobar si el destino ya existe con el nombre final; si sí, saltar sin error.
+Log persistente con resumen final verificable: si el log no llega al resumen, algo se cortó a medio camino — señal de fallo.
+Modo prueba por defecto en toda acción destructiva (borrar): listar qué se borraría, requerir confirmación explícita para pasar a modo real.
+Verificación de nombre real vs nombre procesado: si tu app extrae de un ZIP o normaliza texto, comparar contra el sistema de archivos real antes de dar por cerrado un cambio (evita pérdida de tildes/ñ).
+Esto encaja con tu regla de "toda mejora debe ser reversible" del anexo anterior — aquí se vuelve concreto: dry-run + log + idempotencia es la implementación real de "reversible".
+
+Ahora genero el documento consolidado.
+
+
+Creó un archivo, archivo leído
+Creó un archivo, archivo leído
+Cuando digas que tienes más contexto para agregar, seguimos. Cuando estés listo para la prueba con un documento real, avísame.
+
+
+Prompt app gestion documental
+Documento · MD 
+Inconsistencia que detecto: No, si es necesario poner las siglas. De hecho eso se debe solucionar masivamente, yo debo poder cargar una cantidad de archivos y la aplicacion corregir los nombres.
+Excelente, para el caso de un email, lo marcamos con Fecha del email (envio o recepcion)+Asunto(sin espacios, preferiblemente laprimera letra en mayuscula y sin conectores)+destinatario(no el email primero la institucion a la que va dirigido y si no la primera persona en "para:")+terminar en las iniciales del usuario en la familia. Aqui ya deben exisir los usuarios del gupo familiar pero pueden se CLB, YHM o OLF que son los que voy a organizar
+
+Pensó durante 15s
+Pensó durante 15s
+Empiezo con la implementación: estructura del proyecto y modelo de base de datos (SQL), siguiendo exactamente la arquitectura congelada.
+
+
+Se ejecutaron 2 comandos
+Se ejecutaron 2 comandos
+Estructura correcta. Ahora el modelo de base de datos (SQL), tal como quedó en la arquitectura, sin cambios.
+
+
+Esquema SQL del proyecto, según la arquitectura técnica congelada
+Esquema SQL del proyecto, según la arquitectura técnica congelada
+Ahora precargo los catálogos con los valores ya validados en las pruebas (Fase 0 del plan de implementación).
+
+
+Orchestrated project scaffolding strategy with phased validation approach
+Orchestrated project scaffolding strategy with phased validation approach
+Continúo con la creación del proyecto (paso 3): scaffolding ejecutable y verificación de que el esquema realmente funciona antes de avanzar a los módulos.
+
+
+Se crearon 2 archivos
+Se crearon 2 archivos
+Verifico que el esquema realmente funciona antes de seguir (no doy por buena una migración sin probarla):
+
+
+Ejecutar init_db.py y verificar que el esquema y los catálogos cargan correctamente
+Ejecutar init_db.py y verificar que el esquema y los catálogos cargan correctamente
+Confirmado: el esquema es válido, las 9 tablas se crean sin error y los catálogos ya validados quedan cargados correctamente. Fase 0 cumple su criterio de terminada.
+
+
+Se ejecutaron 2 comandos, creó un archivo, archivo leído
+Se ejecutaron 2 comandos, creó un archivo, archivo leído
+Estado real, no solo entregado en papel:
+
+Plan de implementación (documento 1-10) ✅
+Estructura de carpetas creada ✅
+Esquema SQL escrito y probado: se ejecutó, creó las 9 tablas y cargó los catálogos ya validados con tus documentos reales (Imbanaco, Oportunidad de Vida, Neurólogos de Occidente, SOS EPS, siglas HC/OS/FM/IS/CI/EM, personas CLB/YHM/OLF) sin error ✅
+init_db.py, requirements.txt, README.md con checklist de fases ✅
+Fase 0 cumple su criterio de terminada (verificado con ejecución real, no solo revisado a ojo).
+
+Sigo con Fase 1 (ingest.py, text_extraction.py, ocr.py) en el próximo paso — es la primera fase de desarrollo módulo por módulo.
+
+
+Plan implementacion mvp
+Documento · MD 
+
+Vive doc prep
+ZIP 
+hasta aqui que documentos tenemos del proyecto y continua por favor
+
+
+Ver qué documentos tenemos disponibles: los subidos originalmente y los generados como entregables
+Ver qué documentos tenemos disponibles: los subidos originalmente y los generados como entregables
+Perfecto, tenemos los PDFs reales disponibles para probar Fase 1 con datos verdaderos, no simulados. Antes de programar, el inventario completo del proyecto:
+
+Documentos de análisis/planeación (en /mnt/user-data/outputs)
+
+prompt_app_gestion_documental.md — especificación funcional (cerrada)
+arquitectura_tecnica_mvp.md — arquitectura técnica (congelada)
+plan_implementacion_mvp.md — plan de implementación por fases
+Proyecto (código) — vive-doc-prep.zip: estructura de carpetas, db/schema.sql (probado), db/seed_catalogos.sql, db/init_db.py, requirements.txt, README.md
+
+PDFs de prueba reales (siguen disponibles en /mnt/user-data/uploads): Imbanaco, Oportunidad de Vida, Neurólogos de Occidente (ilovepdf_merged.pdf), correo (Mio.pdf) — los uso ahora para probar Fase 1 con datos reales, no inventados.
+
+Continúo con Fase 1 (ingest.py, ocr.py, text_extraction.py).
+
+
+Deliberó sobre actualizar dependencias y estructurar paquetes
+Deliberó sobre actualizar dependencias y estructurar paquetes
+Tesseract y OCRmyPDF ya disponibles en el entorno. Pruebo el pipeline de Fase 1 contra los 4 PDFs reales:
+
+
+Investigó disponibilidad de paquetes y verificó acceso a repositorios
+Investigó disponibilidad de paquetes y verificó acceso a repositorios
+El entorno de prueba no tiene el paquete de idioma español para Tesseract — instalo y reintento (esto confirma justo el riesgo de empaquetado que ya identificamos: hay que incluir los datos de idioma, no solo el binario):
+
+
+Se ejecutaron 2 comandos
+Se ejecutaron 2 comandos
+Instalado. Reintento la prueba completa:
+
+
+Validó funcionamiento completo y preparó proyecto para entrega
+Validó funcionamiento completo y preparó proyecto para entrega
+Fase 1 funciona de punta a punta con los 4 documentos reales — incluso confirma algo útil: los PDFs con capa de texto nativa (Oportunidad de Vida, el correo) se procesaron en menos de 1 segundo porque --skip-text los detectó y no les aplicó OCR, mientras que los escaneados (Imbanaco, Neurólogos) sí lo necesitaron. Es la prueba real de que la estrategia funciona como se diseñó.
+
+
+Identificó problema con archivos excluidos e ideó solución
+Identificó problema con archivos excluidos e ideó solución
+Limpio.
+
+
+Presented file
+Presented file
+Fase 1 completa y probada con datos reales (no simulados). Sigo con Fase 2 (motor de clasificación: classification/engine.py y rules_repository.py), cargando las reglas por institución que ya validamos manualmente para Imbanaco, Oportunidad de Vida, Neurólogos de Occidente y correspondencia (@sos.com.co).
+
+
+Architected classification engine with entity detection and rule application logic
+Architected classification engine with entity detection and rule application logic
+Ahora las reglas de clasificación (generales + institución), basadas exactamente en el formato de los documentos ya analizados manualmente:
+
+
+Reglas de clasificación generales y por institución, basadas en los documentos reales ya analizados
+Reglas de clasificación generales y por institución, basadas en los documentos reales ya analizados
+Ahora pruebo el motor de clasificación contra el texto real (OCR) de los 4 documentos, sin simular nada:
+
+
+Diagnosticó fallos reales, identificó bugs específicos, planificó correcciones
+Diagnosticó fallos reales, identificó bugs específicos, planificó correcciones
+Encontré bugs reales probando contra los 4 documentos (no me los guardo, te los reporto con el resultado exacto):
+
+Bug real de regex en EM (Mio.pdf): la extracción del asunto capturó también la línea del remitente, por usar .+? con DOTALL sin restringir a una sola línea. Es un error de implementación, lo corrijo.
+Bug real de detección de miembro: en Oportunidad de Vida el paciente aparece como "LEMOS BENITEZ CHRISTIAN" (apellidos primero), y la comparación exigía coincidencia textual exacta contra "Christian Lemos Benitez" — nunca coincidía. Corrijo para comparar por palabras, no por orden exacto.
+Hallazgo real, no un bug de código: en Imbanaco el logo/encabezado quedó tan mal leído por OCR ("m b a n a c o" en vez de "Imbanaco") que ni la entidad ni la sigla se detectan. El sistema hizo exactamente lo correcto: no adivinó, dejó esas páginas sin clasificar para revisión manual. Esto confirma en la práctica por qué el estado NO_PROCESADO es necesario, no es una falla del diseño.
+
+Editó 2 archivos
+Editó 2 archivos
+Reintento con las dos correcciones aplicadas:
+
+
+Evaluó avances en clasificación y planificó mejoras futuras
+Evaluó avances en clasificación y planificó mejoras futuras
+11 de 22 páginas quedaron confiables (OK) tras las correcciones, las otras 11 cayeron correctamente en "sin clasificar" — no hubo ninguna clasificación incorrecta forzada, que es justo el comportamiento que se diseñó.
+
+Hallazgo real para la Fase 3 (Segmentación), lo anoto para no perderlo: varias páginas "sin clasificar" son en realidad continuaciones de una HC ya resuelta en la página anterior (ej. Oportunidad de Vida pág. 2-3, mismo documento que la pág. 1, pero sin repetir nombre de paciente ni encabezado). El motor de clasificación por página, solo, no puede resolverlas — pero la segmentación sí puede: si una página sin resolver está entre dos páginas de la misma sigla ya confirmada, hereda los metadatos del bloque. Esto no es un parche, es la responsabilidad natural de la Fase 3, y no estaba explícito en el plan — lo incorporo ahí, no en el motor de clasificación.
+
+
+Se ejecutaron 2 comandos, editó un archivo, archivo leído
+Se ejecutaron 2 comandos, editó un archivo, archivo leído
+Fases 0, 1 y 2 completas y probadas con datos reales. Sigo con Fase 3 (Segmentación), incorporando la herencia de metadatos entre páginas contiguas de la misma sigla.
+
+
+Módulo de segmentación: agrupa páginas contiguas de la misma sigla y hereda metadatos a páginas sin resolver
+Módulo de segmentación: agrupa páginas contiguas de la misma sigla y hereda metadatos a páginas sin resolver
+Ahora pruebo la segmentación completa (ingesta → OCR → clasificación → segmentación) sobre los 4 documentos reales:
+
+
+Identificó bug en herencia de clasificaciones y reformuló lógica
+Identificó bug en herencia de clasificaciones y reformuló lógica
+Encontré otro bug real en la herencia: cuando una página ya tenía su propia sigla detectada pero le faltaban entidad/miembro, la lógica comparaba las siglas de los vecinos entre sí en vez de comparar contra la sigla que la propia página ya tenía. Corrijo:
+
+
+Diagnosticó regresión algorítmica y rediseñó solución robusta
+Diagnosticó regresión algorítmica y rediseñó solución robusta
+Necesito corregir la lógica correctamente: la propagación en una sola pasada tiene un efecto de orden que rompe cadenas de más de una página. La rehago como dos pasos explícitos: primero completar páginas que ya tienen su propia sigla detectada, después rellenar huecos completos solo cuando ambos extremos del bloque coinciden.
+
+
+Validó clasificaciones, documentó limitaciones, preparó entrega final
+Validó clasificaciones, documentó limitaciones, preparó entrega final
+Correcto ahora: Oportunidad de Vida agrupa exactamente [1,2,3]=HC, [4]=OS, [5]=FM — igual a como lo clasificamos manualmente en el análisis. Neurólogos de Occidente deja las páginas 2-4 sin resolver de forma conservadora (página 4 rompe el bloque porque linda con la incapacidad, distinto tipo) — es ambigüedad real, no un error, y el sistema prefiere no adivinar.
+
+
+Se ejecutaron 2 comandos, editó un archivo, archivo leído
+Se ejecutaron 2 comandos, editó un archivo, archivo leído
+Fases 0-3 completas y probadas con los 4 documentos reales. Sigo con Fase 4 (Detección de duplicados: hash + contenido).
+
+
+Identificó brecha arquitectónica y decidió resolver modificando esquema
+Identificó brecha arquitectónica y decidió resolver modificando esquema
+Encontré un problema real de diseño al implementar duplicados: la comparación de contenido necesita el texto de documentos ya procesados anteriormente, pero el esquema actual no lo guarda en ningún lado — solo se pasa en memoria durante el pipeline. Sin persistirlo, no se puede comparar contra documentos de una sesión anterior. Agrego una columna a documentos (cambio mínimo, no toca ninguna decisión funcional ni de arquitectura, solo un dato que faltaba para que el módulo funcione):
+
+
+Editó 3 archivos
+Editó 3 archivos
+Pruebo Fase 4 con datos reales: comparo los 2 documentos de Christian Lemos entre sí (deben distinguirse, no ser duplicados) y una copia deliberada de uno para confirmar que el hash sí lo detecta.
+
+
+Probar detección de duplicados: hash exacto (copia) y no-falso-positivo por contenido (documento distinto)
+Probar detección de duplicados: hash exacto (copia) y no-falso-positivo por contenido (documento distinto)
+Fase 4 funciona correctamente: detecta la copia exacta por hash, y no genera falso positivo entre documentos distintos por contenido.
+
+
+Vive doc prep
+ZIP 
+
+Limpiar artefactos de prueba
